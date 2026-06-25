@@ -159,9 +159,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <script>
-// ╔══════════════════════════════════════════════════════╗
-// ║  👇 把这里替换成你自己的 Firebase 配置（见教程）👇    ║
-// ╚══════════════════════════════════════════════════════╝
 const firebaseConfig = {
   apiKey: "AIzaSyCmDj_5UoIHZXbZF8QNw9r5gRVAC7H-mBg",
   authDomain: "perfect-score-game.firebaseapp.com",
@@ -527,7 +524,7 @@ function render() {
       <h2 class="title" style="font-size:1.15rem">已抽牌</h2>
       ${cardHTML(null,null,true,false)}
       <p style="color:#6B2D5B;font-size:.88rem;text-align:center;line-height:1.6">
-        牌已抽好，你看不到数字。<br>B 们已经看到目标分了。<br><br>
+        牌已抽好，你看不到数字。<br>朋友 B 们已经看到目标分了。<br><br>
         等 B 描述：<br>
         <span style="font-weight:700;color:#FF6B6B">「这是一个${LABEL}，但是……」</span>
       </p>
