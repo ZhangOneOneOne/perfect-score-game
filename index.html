@@ -256,7 +256,7 @@ let state = {
   scoreVal: null,
   guests: {},
   players: {},
-  maxAttempts: 3,
+  maxAttempts: 2,
   attemptIndex: 0,
   currentDescriberId: "",
   currentDescriberName: "",
@@ -323,7 +323,7 @@ function clampMaxAttempts(v) {
 }
 
 function getAttemptLimit(d = state) {
-  return clampMaxAttempts(d.maxAttempts || 3);
+  return clampMaxAttempts(d.maxAttempts || 2);
 }
 
 function currentDescriberFor(d = state, index = d.attemptIndex || 0) {
