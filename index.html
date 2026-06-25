@@ -239,6 +239,7 @@ let state = {
   score: null,
   scoreVal: null,
   guests: {},
+  players: {},
   err: "",
   history: [],
   unsub: null,
@@ -270,6 +271,25 @@ function guestList() {
   return Object.values(g);
 }
 
+function playerMapFromRoom(d) {
+  const players = { ...(d.players || {}) };
+  if (d.hostId) players[d.hostId] = { id: d.hostId, name: d.hostName || "A" };
+  Object.values(d.guests || {}).forEach((g) => {
+    if (g && g.id) players[g.id] = { id: g.id, name: g.name || "玩家" };
+  });
+  return players;
+}
+
+function playerList() {
+  const players = playerMapFromRoom(state);
+  const list = Object.values(players);
+  return list.sort((a, b) => {
+    if (a.id === myId) return -1;
+    if (b.id === myId) return 1;
+    return 0;
+  });
+}
+
 function guestChips() {
   const list = guestList();
   if (!list.length) return `<p class="sub pulse">等待 B 加入…</p>`;
@@ -281,6 +301,7 @@ function guestChips() {
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function attr(s) { return esc(s).replace(/"/g, "&quot;"); }
+function jsArg(s) { return JSON.stringify(String(s)).replace(/</g, "\\u003c"); }
 
 function scoreDots(selected, clickable) {
   let html = '<div class="score-dots">';
@@ -323,16 +344,18 @@ window.createRoom = async () => {
   const data = {
     hostId: myId, hostName: name,
     card: null, suit: null, round: 1, status: "waiting", score: null,
-    guests: {}, created: Date.now(),
+    guests: {}, players: { [myId]: { id: myId, name } }, created: Date.now(),
   };
   const ok = await writeRoom(code, data);
   if (!ok) { setState({ err: "创建失败，请检查 Firebase 配置" }); return; }
   const unsub = onRoomChange(code, (d) => {
     state.guests = d.guests || {};
+    state.players = playerMapFromRoom(d);
     state.round = d.round || 1;
     render();
   });
-  setState({ view: "hostWait", roomCode: code, hostId: myId, hostName: name, round: 1, unsub, err: "" });
+  setState({ view: "hostWait", roomCode: code, hostId: myId, hostName: name,
+    players: data.players, round: 1, unsub, err: "" });
 };
 
 window.drawCard = async () => {
@@ -358,28 +381,30 @@ window.revealCard = async () => {
 
 window.nextRound = async (newHostId, newHostName) => {
   const nr = state.round + 1;
-  let guestsObj = { ...(state.guests || {}) };
+  const playersObj = playerMapFromRoom(state);
+  playersObj[myId] = { id: myId, name: state.hostName };
+  playersObj[newHostId] = { id: newHostId, name: newHostName };
+  const guestsObj = {};
 
-  if (newHostId !== myId) {
-    // Transfer: current host becomes guest, new host leaves guest list
-    guestsObj[myId] = { id: myId, name: state.hostName };
-    delete guestsObj[newHostId];
-  }
-  // else: same host continues, guest list unchanged
+  Object.values(playersObj).forEach((p) => {
+    if (p.id !== newHostId) guestsObj[p.id] = { id: p.id, name: p.name };
+  });
 
   await updateRoom(state.roomCode, {
     card: null, suit: null, status: "waiting", score: null,
     round: nr, hostId: newHostId, hostName: newHostName,
-    guests: guestsObj,
+    guests: guestsObj, players: playersObj,
   });
 
   if (newHostId === myId) {
-    setState({ round: nr, card: null, suit: null, score: null, scoreVal: null, view: "hostWait" });
+    setState({ round: nr, card: null, suit: null, score: null, scoreVal: null,
+      guests: guestsObj, players: playersObj, view: "hostWait" });
   } else {
     if (state.unsub) state.unsub();
     const unsub = onRoomChange(state.roomCode, onGuestData);
     setState({ round: nr, card: null, suit: null, score: null, scoreVal: null,
-      view: "guestWait", unsub, hostId: newHostId, hostName: newHostName });
+      guests: guestsObj, players: playersObj, view: "guestWait", unsub,
+      hostId: newHostId, hostName: newHostName });
   }
 };
 
@@ -392,15 +417,20 @@ window.joinRoom = async () => {
   if (code.length !== 4) return;
   const d = await readRoom(code);
   if (!d) { setState({ err: "房间不存在，请检查房间号" }); return; }
-  // Add self as guest
-  const gRef = db.ref("rooms/" + code + "/guests/" + myId);
-  await gRef.set({ id: myId, name: name });
+  // Add self as guest and keep a full player roster for unlimited host transfers.
+  const player = { id: myId, name: name };
+  await updateRoom(code, {
+    ["guests/" + myId]: player,
+    ["players/" + myId]: player,
+  });
   // Subscribe
   const unsub = onRoomChange(code, onGuestData);
+  const guests = { ...(d.guests || {}), [myId]: player };
+  const players = playerMapFromRoom({ ...d, guests, players: { ...(d.players || {}), [myId]: player } });
   setState({
     view: "guestWait", roomCode: code, err: "",
     hostId: d.hostId, hostName: d.hostName,
-    round: d.round || 1, unsub,
+    guests, players, round: d.round || 1, unsub,
   });
 };
 
@@ -410,6 +440,7 @@ function onGuestData(d) {
     if (state.unsub) state.unsub();
     const unsub = onRoomChange(state.roomCode, (dd) => {
       state.guests = dd.guests || {};
+      state.players = playerMapFromRoom(dd);
       state.round = dd.round || 1;
       render();
     });
@@ -417,6 +448,7 @@ function onGuestData(d) {
       view: "hostWait", unsub,
       hostId: myId, hostName: d.hostName,
       guests: d.guests || {},
+      players: playerMapFromRoom(d),
       round: d.round || 1, card:null, score:null,
     });
     return;
@@ -425,6 +457,7 @@ function onGuestData(d) {
   state.hostName = d.hostName || "A";
   state.round = d.round || 1;
   state.guests = d.guests || {};
+  state.players = playerMapFromRoom(d);
   if (d.status === "drawn" || d.status === "scored") {
     state.card = d.card; state.suit = d.suit; state.score = d.score;
     state.view = "guestSee";
@@ -566,8 +599,7 @@ function render() {
     const diff = Math.abs(s.score - s.card);
     const emoji = diff===0?"🎉":diff<=1?"👏":diff<=3?"😅":"💀";
     const msg = diff===0?"完美命中！！":diff<=1?"好接近！":diff<=3?"有点差距":"离谱了……";
-    const gl = guestList();
-    const allPlayers = [{ id:myId, name:s.hostName }, ...gl];
+    const allPlayers = playerList();
 
     html = `<div class="panel">
       <p class="sub" style="font-size:.8rem">第 ${s.round} 轮结果</p>
@@ -595,7 +627,7 @@ function render() {
       <p style="color:#4A1942;font-weight:700;font-size:.88rem">下一轮谁当 A？</p>
       <div class="flex-center flex-wrap gap-8">
         ${allPlayers.map(p => `<button class="next-btn ${p.id===myId?"current":""}"
-          onclick="nextRound('${p.id}','${esc(p.name)}')">${esc(p.name)}${p.id===myId?"（继续）":""}</button>`).join("")}
+          onclick="nextRound(${jsArg(p.id)},${jsArg(p.name)})">${esc(p.name)}${p.id===myId?"（继续）":""}</button>`).join("")}
       </div>
     </div>`;
   }
