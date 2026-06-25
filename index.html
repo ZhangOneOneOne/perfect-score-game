@@ -472,7 +472,7 @@ function render() {
           A 打分，越接近目标越好！每轮可换人当 A。
         </p>
       </div>
-      <input class="input" placeholder="输入你的昵称（≤8字）" value="${esc(s.name)}" oninput="setName(this.value)" maxlength="8" />
+      <input class="input" data-key="name" placeholder="输入你的昵称（≤8字）" value="${esc(s.name)}" oninput="setName(this.value)" maxlength="8" />
       ${s.err ? `<p class="err">${esc(s.err)}</p>` : ""}
       <button class="btn1" onclick="createRoom()" ${!firebaseReady?"disabled":""}>创建房间（当 A）</button>
       <button class="btn2" onclick="goJoin()">加入房间（当 B）</button>
@@ -484,7 +484,7 @@ function render() {
     html = `<div class="panel">
       <h2 class="title" style="font-size:1.3rem">加入房间</h2>
       <p class="sub">输入 A 分享的四位房间号</p>
-      <input class="input input-code" placeholder="四位房间号" value="${esc(s.joinCode)}"
+      <input class="input input-code" data-key="joinCode" placeholder="四位房间号" value="${esc(s.joinCode)}"
         oninput="setJoinCode(this.value)" maxlength="4" inputmode="numeric" />
       ${s.err ? `<p class="err">${esc(s.err)}</p>` : ""}
       <div style="display:flex;gap:12px;width:100%">
@@ -639,7 +639,18 @@ function render() {
     </div>`;
   }
 
+  const focused = document.activeElement;
+  const focusedId = focused && focused.tagName === "INPUT" ? focused.id : null;
+  const focusedSel = focused && focused.tagName === "INPUT" ? focused.getAttribute("data-key") : null;
+  const selStart = focused && focused.selectionStart;
+  const selEnd = focused && focused.selectionEnd;
+
   root.innerHTML = html;
+
+  if (focusedSel) {
+    const el = root.querySelector(`[data-key="${focusedSel}"]`);
+    if (el) { el.focus(); try { el.setSelectionRange(selStart, selEnd); } catch(e){} }
+  }
 }
 
 render();
