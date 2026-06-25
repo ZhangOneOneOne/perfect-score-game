@@ -627,7 +627,7 @@ function render() {
       <p style="color:#4A1942;font-weight:700;font-size:.88rem">下一轮谁当 A？</p>
       <div class="flex-center flex-wrap gap-8">
         ${allPlayers.map(p => `<button class="next-btn ${p.id===myId?"current":""}"
-          onclick="nextRound(${jsArg(p.id)},${jsArg(p.name)})">${esc(p.name)}${p.id===myId?"（继续）":""}</button>`).join("")}
+          onclick='nextRound(${jsArg(p.id)},${jsArg(p.name)})'>${esc(p.name)}${p.id===myId?"（继续）":""}</button>`).join("")}
       </div>
     </div>`;
   }
