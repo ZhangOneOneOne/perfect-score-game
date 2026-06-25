@@ -280,6 +280,7 @@ function guestChips() {
 }
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function attr(s) { return esc(s).replace(/"/g, "&quot;"); }
 
 function scoreDots(selected, clickable) {
   let html = '<div class="score-dots">';
@@ -314,6 +315,7 @@ function historyHTML() {
 window.selectScore = (v) => { setState({ scoreVal: v }); };
 
 window.createRoom = async () => {
+  syncInputs();
   const name = state.name.trim();
   if (!name) { setState({ err: "请先输入昵称" }); return; }
   if (!firebaseReady) { setState({ err: "Firebase 未配置，请按教程填写配置" }); return; }
@@ -356,36 +358,33 @@ window.revealCard = async () => {
 
 window.nextRound = async (newHostId, newHostName) => {
   const nr = state.round + 1;
-  // If transferring, move old host to guests, remove new host from guests
   let guestsObj = { ...(state.guests || {}) };
-  if (newHostId && newHostId !== myId) {
-    // Old host becomes guest
+
+  if (newHostId !== myId) {
+    // Transfer: current host becomes guest, new host leaves guest list
     guestsObj[myId] = { id: myId, name: state.hostName };
-    // New host removed from guests
     delete guestsObj[newHostId];
-  } else if (newHostId && newHostId !== state.hostId) {
-    delete guestsObj[newHostId];
-    guestsObj[state.hostId] = { id: state.hostId, name: state.hostName };
   }
+  // else: same host continues, guest list unchanged
 
   await updateRoom(state.roomCode, {
-    card:null, suit:null, status:"waiting", score:null,
-    round:nr, hostId:newHostId||myId, hostName:newHostName||state.hostName,
+    card: null, suit: null, status: "waiting", score: null,
+    round: nr, hostId: newHostId, hostName: newHostName,
     guests: guestsObj,
   });
 
-  if (!newHostId || newHostId === myId) {
-    setState({ round:nr, card:null, suit:null, score:null, scoreVal:null, view:"hostWait" });
+  if (newHostId === myId) {
+    setState({ round: nr, card: null, suit: null, score: null, scoreVal: null, view: "hostWait" });
   } else {
-    // I'm no longer host, switch to guest mode
     if (state.unsub) state.unsub();
     const unsub = onRoomChange(state.roomCode, onGuestData);
-    setState({ round:nr, card:null, suit:null, score:null, scoreVal:null, view:"guestWait", unsub,
-      hostId:newHostId, hostName:newHostName });
+    setState({ round: nr, card: null, suit: null, score: null, scoreVal: null,
+      view: "guestWait", unsub, hostId: newHostId, hostName: newHostName });
   }
 };
 
 window.joinRoom = async () => {
+  syncInputs();
   const name = state.name.trim();
   if (!name) { setState({ err: "请先输入昵称" }); return; }
   if (!firebaseReady) { setState({ err: "Firebase 未配置" }); return; }
@@ -443,12 +442,32 @@ function onGuestData(d) {
 }
 
 window.goJoin = () => {
+  syncInputs();
   if (!state.name.trim()) { setState({ err: "请先输入昵称" }); return; }
   setState({ view:"join", err:"" });
 };
 window.goHome = () => setState({ view:"home", err:"" });
-window.setName = (v) => { state.name = v.slice(0,8); state.err = ""; };
-window.setJoinCode = (v) => { state.joinCode = v.replace(/\D/g,"").slice(0,4); state.err = ""; };
+
+window.handleNameInput = (el) => {
+  state.name = el.value.slice(0,8);
+  const btn = document.getElementById("btn-go-join");
+  if (btn) btn.disabled = !state.name.trim();
+};
+
+window.handleJoinCodeInput = (el) => {
+  state.joinCode = el.value.replace(/\D/g,"").slice(0,4);
+  if (el.value !== state.joinCode) el.value = state.joinCode;
+  const btn = document.getElementById("btn-join");
+  if (btn) btn.disabled = state.joinCode.length !== 4;
+};
+
+// Read latest values from DOM before any action that needs them
+function syncInputs() {
+  const nameEl = document.getElementById("input-name");
+  const codeEl = document.getElementById("input-code");
+  if (nameEl) state.name = nameEl.value.slice(0,8);
+  if (codeEl) state.joinCode = codeEl.value.replace(/\D/g,"").slice(0,4);
+}
 
 // ── Render ──
 function render() {
@@ -472,10 +491,11 @@ function render() {
           A 打分，越接近目标越好！每轮可换人当 A。
         </p>
       </div>
-      <input class="input" data-key="name" placeholder="输入你的昵称（≤8字）" value="${esc(s.name)}" oninput="setName(this.value)" maxlength="8" />
+      <input id="input-name" class="input" placeholder="输入你的昵称（≤8字）" maxlength="8"
+        value="${attr(s.name)}" oninput="handleNameInput(this)" />
       ${s.err ? `<p class="err">${esc(s.err)}</p>` : ""}
       <button class="btn1" onclick="createRoom()" ${!firebaseReady?"disabled":""}>创建房间（当 A）</button>
-      <button class="btn2" onclick="goJoin()">加入房间（当 B）</button>
+      <button id="btn-go-join" class="btn2" onclick="goJoin()" ${!s.name.trim()?"disabled":""}>加入房间（当 B）</button>
     </div>`;
   }
 
@@ -484,12 +504,13 @@ function render() {
     html = `<div class="panel">
       <h2 class="title" style="font-size:1.3rem">加入房间</h2>
       <p class="sub">输入 A 分享的四位房间号</p>
-      <input class="input input-code" data-key="joinCode" placeholder="四位房间号" value="${esc(s.joinCode)}"
-        oninput="setJoinCode(this.value)" maxlength="4" inputmode="numeric" />
+      <input id="input-code" class="input input-code" placeholder="四位房间号"
+        maxlength="4" inputmode="numeric" value="${attr(s.joinCode)}"
+        oninput="handleJoinCodeInput(this)" />
       ${s.err ? `<p class="err">${esc(s.err)}</p>` : ""}
       <div style="display:flex;gap:12px;width:100%">
         <button class="btn2" style="flex:1" onclick="goHome()">返回</button>
-        <button class="btn1" style="flex:1" onclick="joinRoom()" ${s.joinCode.length!==4?"disabled":""}>加入</button>
+        <button id="btn-join" class="btn1" style="flex:1" onclick="joinRoom()" ${s.joinCode.length!==4?"disabled":""}>加入</button>
       </div>
     </div>`;
   }
@@ -639,18 +660,7 @@ function render() {
     </div>`;
   }
 
-  const focused = document.activeElement;
-  const focusedId = focused && focused.tagName === "INPUT" ? focused.id : null;
-  const focusedSel = focused && focused.tagName === "INPUT" ? focused.getAttribute("data-key") : null;
-  const selStart = focused && focused.selectionStart;
-  const selEnd = focused && focused.selectionEnd;
-
   root.innerHTML = html;
-
-  if (focusedSel) {
-    const el = root.querySelector(`[data-key="${focusedSel}"]`);
-    if (el) { el.focus(); try { el.setSelectionRange(selStart, selEnd); } catch(e){} }
-  }
 }
 
 render();
