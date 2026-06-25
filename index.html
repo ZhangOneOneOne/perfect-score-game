@@ -118,6 +118,22 @@
     padding:6px 12px; border-radius:10px; font-size:.79rem; color:#4A1942;
   }
   .history-row:nth-child(odd) { background:#FFF8F0; }
+  .attempt-row {
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:8px 12px; border-radius:12px; font-size:.82rem; color:#4A1942;
+    background:#FFF8F0; width:100%;
+  }
+  .rank-row {
+    display:grid; grid-template-columns:34px 1fr auto; align-items:center; gap:10px;
+    padding:10px 12px; border-radius:14px; background:#FFF8F0; width:100%;
+    color:#4A1942; font-size:.86rem;
+  }
+  .rank-no {
+    width:26px; height:26px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; background:#4A1942; color:#FFD700; font-weight:800;
+  }
+  .settings-row { display:flex; width:100%; gap:10px; align-items:center; }
+  .settings-row .input { flex:1; }
   .overlay {
     position:fixed; inset:0; background:rgba(74,25,66,.45);
     backdrop-filter:blur(6px); display:flex; align-items:center;
@@ -227,7 +243,7 @@ const $ = (sel) => document.querySelector(sel);
 const root = document.getElementById("root");
 
 let state = {
-  view: "home", // home | join | hostWait | hostDrawn | hostScore | hostReveal | guestWait | guestSee | guestReveal
+  view: "home", // home | join | hostWait | hostDrawn | hostScore | hostReveal | guestWait | guestSee | guestReveal | gameEnd
   name: "",
   roomCode: "",
   joinCode: "",
@@ -240,6 +256,12 @@ let state = {
   scoreVal: null,
   guests: {},
   players: {},
+  maxAttempts: 3,
+  attemptIndex: 0,
+  currentDescriberId: "",
+  currentDescriberName: "",
+  attempts: {},
+  stats: {},
   err: "",
   history: [],
   unsub: null,
@@ -271,6 +293,10 @@ function guestList() {
   return Object.values(g);
 }
 
+function roomGuestList(d = state) {
+  return Object.values(d.guests || {}).filter(Boolean).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+}
+
 function playerMapFromRoom(d) {
   const players = { ...(d.players || {}) };
   if (d.hostId) players[d.hostId] = { id: d.hostId, name: d.hostName || "A" };
@@ -288,6 +314,67 @@ function playerList() {
     if (b.id === myId) return 1;
     return 0;
   });
+}
+
+function clampMaxAttempts(v) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return 3;
+  return Math.min(20, Math.max(1, n));
+}
+
+function getAttemptLimit(d = state) {
+  return clampMaxAttempts(d.maxAttempts || 3);
+}
+
+function currentDescriberFor(d = state, index = d.attemptIndex || 0) {
+  const list = roomGuestList(d);
+  if (!list.length) return null;
+  return list[index % list.length];
+}
+
+function attemptList() {
+  return Object.values(state.attempts || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+}
+
+function recordStat(stats, playerId, name, diff, exact) {
+  if (!playerId) return stats;
+  const next = { ...(stats || {}) };
+  const prev = next[playerId] || { id: playerId, name, attempts: 0, hits: 0, totalDiff: 0 };
+  next[playerId] = {
+    id: playerId,
+    name: name || prev.name || "玩家",
+    attempts: (prev.attempts || 0) + 1,
+    hits: (prev.hits || 0) + (exact ? 1 : 0),
+    totalDiff: (prev.totalDiff || 0) + diff,
+  };
+  return next;
+}
+
+function rankingList() {
+  return Object.values(state.stats || {}).sort((a, b) => {
+    if ((b.hits || 0) !== (a.hits || 0)) return (b.hits || 0) - (a.hits || 0);
+    const avgA = (a.totalDiff || 0) / Math.max(1, a.attempts || 1);
+    const avgB = (b.totalDiff || 0) / Math.max(1, b.attempts || 1);
+    if (avgA !== avgB) return avgA - avgB;
+    return (b.attempts || 0) - (a.attempts || 0);
+  });
+}
+
+function syncRoomFields(d) {
+  state.hostId = d.hostId || "";
+  state.hostName = d.hostName || "A";
+  state.round = d.round || 1;
+  state.guests = d.guests || {};
+  state.players = playerMapFromRoom(d);
+  state.maxAttempts = getAttemptLimit(d);
+  state.attemptIndex = d.attemptIndex || 0;
+  state.currentDescriberId = d.currentDescriberId || "";
+  state.currentDescriberName = d.currentDescriberName || "";
+  state.attempts = d.attempts || {};
+  state.stats = d.stats || {};
+  state.card = d.card ?? null;
+  state.suit = d.suit ?? null;
+  state.score = d.score ?? null;
 }
 
 function guestChips() {
@@ -332,6 +419,36 @@ function historyHTML() {
   return html;
 }
 
+function attemptsHTML() {
+  const list = attemptList();
+  if (!list.length) return "";
+  return `<div class="w-full" style="display:flex;flex-direction:column;gap:6px">
+    <p style="color:#4A1942;font-weight:700;font-size:.82rem">本轮描述记录</p>
+    ${list.map((a) => {
+      const c = a.diff===0 ? "#27AE60" : a.diff<=1 ? "#F39C12" : "#D63031";
+      return `<div class="attempt-row">
+        <span>${a.index + 1}. ${esc(a.name)}</span>
+        <span>打 ${a.score}，差 <strong style="color:${c}">${a.diff}</strong></span>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+function rankingHTML() {
+  const list = rankingList();
+  if (!list.length) return `<p class="sub">还没有任何描述记录</p>`;
+  return `<div class="w-full" style="display:flex;flex-direction:column;gap:8px">
+    ${list.map((p, i) => {
+      const avg = ((p.totalDiff || 0) / Math.max(1, p.attempts || 1)).toFixed(1);
+      return `<div class="rank-row">
+        <span class="rank-no">${i + 1}</span>
+        <span><strong>${esc(p.name)}</strong><br><span style="font-size:.75rem;color:#8B6B7B">描述 ${p.attempts || 0} 次</span></span>
+        <span style="text-align:right;font-weight:700">命中 ${p.hits || 0}<br><span style="font-size:.75rem;color:#8B6B7B">平均差 ${avg}</span></span>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
 // ── Actions ──
 window.selectScore = (v) => { setState({ scoreVal: v }); };
 
@@ -340,43 +457,87 @@ window.createRoom = async () => {
   const name = state.name.trim();
   if (!name) { setState({ err: "请先输入昵称" }); return; }
   if (!firebaseReady) { setState({ err: "Firebase 未配置，请按教程填写配置" }); return; }
+  const maxAttempts = getAttemptLimit(state);
   const code = genCode();
   const data = {
     hostId: myId, hostName: name,
     card: null, suit: null, round: 1, status: "waiting", score: null,
-    guests: {}, players: { [myId]: { id: myId, name } }, created: Date.now(),
+    guests: {}, players: { [myId]: { id: myId, name } },
+    maxAttempts, attemptIndex: 0, attempts: {}, stats: {},
+    currentDescriberId: "", currentDescriberName: "", created: Date.now(),
   };
   const ok = await writeRoom(code, data);
   if (!ok) { setState({ err: "创建失败，请检查 Firebase 配置" }); return; }
   const unsub = onRoomChange(code, (d) => {
-    state.guests = d.guests || {};
-    state.players = playerMapFromRoom(d);
-    state.round = d.round || 1;
+    syncRoomFields(d);
+    if (d.status === "gameEnded") state.view = "gameEnd";
     render();
   });
   setState({ view: "hostWait", roomCode: code, hostId: myId, hostName: name,
-    players: data.players, round: 1, unsub, err: "" });
+    players: data.players, maxAttempts, round: 1, unsub, err: "" });
 };
 
 window.drawCard = async () => {
+  const firstDescriber = currentDescriberFor(state, 0);
+  if (!firstDescriber) { setState({ err: "至少需要 1 位 B 加入后才能开始" }); return; }
   const n = Math.floor(Math.random()*10)+1;
   const s = SUITS[Math.floor(Math.random()*4)];
-  await updateRoom(state.roomCode, { card:n, suit:s, status:"drawn", score:null, round:state.round });
-  setState({ card:n, suit:s, score:null, scoreVal:null, view:"hostDrawn" });
+  await updateRoom(state.roomCode, {
+    card:n, suit:s, status:"drawn", score:null, round:state.round,
+    attemptIndex: 0, attempts: {},
+    currentDescriberId: firstDescriber.id,
+    currentDescriberName: firstDescriber.name,
+  });
+  setState({ card:n, suit:s, score:null, scoreVal:null, attemptIndex:0, attempts:{},
+    currentDescriberId:firstDescriber.id, currentDescriberName:firstDescriber.name, view:"hostDrawn" });
   // Auto-advance to score view after a moment (host shouldn't see this screen long)
   setTimeout(() => { if (state.view==="hostDrawn") setState({ view:"hostScore" }); }, 600);
 };
 
 window.submitScore = async () => {
   if (state.scoreVal === null) return;
-  await updateRoom(state.roomCode, { score: state.scoreVal, status: "scored" });
-  setState({ score: state.scoreVal });
-};
+  const score = state.scoreVal;
+  const diff = Math.abs(score - state.card);
+  const exact = diff === 0;
+  const index = state.attemptIndex || 0;
+  const attempts = {
+    ...(state.attempts || {}),
+    [index]: {
+      index,
+      playerId: state.currentDescriberId,
+      name: state.currentDescriberName || "B",
+      score,
+      diff,
+    },
+  };
+  const stats = recordStat(state.stats, state.currentDescriberId, state.currentDescriberName, diff, exact);
+  const nextIndex = index + 1;
+  const limit = getAttemptLimit(state);
+  const nextDescriber = currentDescriberFor(state, nextIndex);
+  const shouldReveal = exact || nextIndex >= limit || !nextDescriber;
 
-window.revealCard = async () => {
-  await updateRoom(state.roomCode, { status: "revealed" });
-  const h = [...state.history, { round:state.round, host:state.hostName, card:state.card, score:state.score }];
-  setState({ view:"hostReveal", history:h });
+  if (shouldReveal) {
+    await updateRoom(state.roomCode, {
+      score, status: "revealed", attempts, stats,
+      attemptIndex: index,
+      currentDescriberId: state.currentDescriberId,
+      currentDescriberName: state.currentDescriberName,
+    });
+    const h = [...state.history, {
+      round:state.round, host:state.hostName, card:state.card, score,
+      winner: exact ? state.currentDescriberName : "",
+    }];
+    setState({ score, attempts, stats, view:"hostReveal", history:h });
+  } else {
+    await updateRoom(state.roomCode, {
+      score: null, status: "drawn", attempts, stats,
+      attemptIndex: nextIndex,
+      currentDescriberId: nextDescriber.id,
+      currentDescriberName: nextDescriber.name,
+    });
+    setState({ score:null, scoreVal:null, attempts, stats, attemptIndex: nextIndex,
+      currentDescriberId: nextDescriber.id, currentDescriberName: nextDescriber.name });
+  }
 };
 
 window.nextRound = async (newHostId, newHostName) => {
@@ -393,19 +554,28 @@ window.nextRound = async (newHostId, newHostName) => {
   await updateRoom(state.roomCode, {
     card: null, suit: null, status: "waiting", score: null,
     round: nr, hostId: newHostId, hostName: newHostName,
+    attemptIndex: 0, attempts: {}, currentDescriberId: "", currentDescriberName: "",
     guests: guestsObj, players: playersObj,
   });
 
   if (newHostId === myId) {
     setState({ round: nr, card: null, suit: null, score: null, scoreVal: null,
+      attemptIndex: 0, attempts: {}, currentDescriberId: "", currentDescriberName: "",
       guests: guestsObj, players: playersObj, view: "hostWait" });
   } else {
     if (state.unsub) state.unsub();
     const unsub = onRoomChange(state.roomCode, onGuestData);
     setState({ round: nr, card: null, suit: null, score: null, scoreVal: null,
+      attemptIndex: 0, attempts: {}, currentDescriberId: "", currentDescriberName: "",
       guests: guestsObj, players: playersObj, view: "guestWait", unsub,
       hostId: newHostId, hostName: newHostName });
   }
+};
+
+window.endGame = async () => {
+  if (!state.roomCode) return;
+  await updateRoom(state.roomCode, { status: "gameEnded", endedAt: Date.now() });
+  setState({ view: "gameEnd" });
 };
 
 window.joinRoom = async () => {
@@ -418,7 +588,7 @@ window.joinRoom = async () => {
   const d = await readRoom(code);
   if (!d) { setState({ err: "房间不存在，请检查房间号" }); return; }
   // Add self as guest and keep a full player roster for unlimited host transfers.
-  const player = { id: myId, name: name };
+  const player = { id: myId, name: name, joinedAt: Date.now() };
   await updateRoom(code, {
     ["guests/" + myId]: player,
     ["players/" + myId]: player,
@@ -435,15 +605,21 @@ window.joinRoom = async () => {
 };
 
 function onGuestData(d) {
+  if (d.status === "gameEnded") {
+    syncRoomFields(d);
+    state.view = "gameEnd";
+    render();
+    return;
+  }
   // Did I become host?
   if (d.hostId === myId) {
     if (state.unsub) state.unsub();
     const unsub = onRoomChange(state.roomCode, (dd) => {
-      state.guests = dd.guests || {};
-      state.players = playerMapFromRoom(dd);
-      state.round = dd.round || 1;
+      syncRoomFields(dd);
+      if (dd.status === "gameEnded") state.view = "gameEnd";
       render();
     });
+    syncRoomFields(d);
     setState({
       view: "hostWait", unsub,
       hostId: myId, hostName: d.hostName,
@@ -453,22 +629,15 @@ function onGuestData(d) {
     });
     return;
   }
-  state.hostId = d.hostId;
-  state.hostName = d.hostName || "A";
-  state.round = d.round || 1;
-  state.guests = d.guests || {};
-  state.players = playerMapFromRoom(d);
+  syncRoomFields(d);
   if (d.status === "drawn" || d.status === "scored") {
-    state.card = d.card; state.suit = d.suit; state.score = d.score;
     state.view = "guestSee";
   } else if (d.status === "revealed") {
-    state.card = d.card; state.suit = d.suit; state.score = d.score;
     if (state.view !== "guestReveal") {
       state.history = [...state.history, { round:d.round, host:d.hostName, card:d.card, score:d.score }];
     }
     state.view = "guestReveal";
   } else {
-    state.card = null; state.score = null;
     state.view = "guestWait";
   }
   render();
@@ -494,12 +663,19 @@ window.handleJoinCodeInput = (el) => {
   if (btn) btn.disabled = state.joinCode.length !== 4;
 };
 
+window.handleMaxAttemptsInput = (el) => {
+  state.maxAttempts = clampMaxAttempts(el.value);
+  el.value = state.maxAttempts;
+};
+
 // Read latest values from DOM before any action that needs them
 function syncInputs() {
   const nameEl = document.getElementById("input-name");
   const codeEl = document.getElementById("input-code");
   if (nameEl) state.name = nameEl.value.slice(0,8);
   if (codeEl) state.joinCode = codeEl.value.replace(/\D/g,"").slice(0,4);
+  const maxEl = document.getElementById("input-max-attempts");
+  if (maxEl) state.maxAttempts = clampMaxAttempts(maxEl.value);
 }
 
 // ── Render ──
@@ -520,9 +696,15 @@ function render() {
         <p style="color:#8B6B7B;font-size:.8rem;line-height:1.7">
           每人用自己手机打开链接加入同一房间。<br>
           A（打分人）抽牌，自己看不到，所有 B 能看到目标分。<br>
-          B 口述「这是一个${LABEL}，但是……」描述一个缺点。<br>
-          A 打分，越接近目标越好！每轮可换人当 A。
+          B 按顺序描述，A 每听完一个人就打一次分。<br>
+          猜中即本轮结束；没人猜中则到达上限后揭牌。
         </p>
+      </div>
+      <div class="settings-row">
+        <span style="color:#4A1942;font-weight:700;font-size:.86rem;white-space:nowrap">最多描述</span>
+        <input id="input-max-attempts" class="input" type="number" min="1" max="20"
+          value="${attr(s.maxAttempts)}" oninput="handleMaxAttemptsInput(this)" />
+        <span style="color:#8B6B7B;font-size:.82rem;white-space:nowrap">轮</span>
       </div>
       <input id="input-name" class="input" placeholder="输入你的昵称（≤8字）" maxlength="8"
         value="${attr(s.name)}" oninput="handleNameInput(this)" />
@@ -550,6 +732,7 @@ function render() {
 
   // HOST WAIT
   else if (s.view === "hostWait") {
+    const hasGuests = guestList().length > 0;
     html = `<div class="panel">
       <p class="sub" style="font-size:.8rem"><span class="tag-a">A 打分人 · ${esc(s.hostName)}</span>　第 ${s.round} 轮</p>
       <h2 class="title" style="font-size:1.2rem">房间号</h2>
@@ -558,8 +741,10 @@ function render() {
       ${guestChips()}
       <div class="sep"></div>
       <p style="color:#4A1942;font-weight:700;font-size:.9rem">准备好了？抽一张牌</p>
-      <p class="sub" style="font-size:.78rem">抽牌后你将看不到结果</p>
-      <button class="btn1" onclick="drawCard()">🃏 点击抽牌</button>
+      <p class="sub" style="font-size:.78rem">本局每轮最多 ${s.maxAttempts} 次描述；抽牌后你将看不到结果</p>
+      ${s.err ? `<p class="err">${esc(s.err)}</p>` : ""}
+      <button class="btn1" onclick="drawCard()" ${!hasGuests?"disabled":""}>🃏 点击抽牌</button>
+      <button class="btn-small" onclick="endGame()">结束游戏</button>
     </div>`;
   }
 
@@ -573,24 +758,24 @@ function render() {
 
   // HOST SCORE
   else if (s.view === "hostScore") {
+    const attemptsDone = attemptList().length;
     html = `<div class="panel">
       <p class="sub" style="font-size:.8rem"><span class="tag-a">A ${esc(s.hostName)}</span>　第 ${s.round} 轮</p>
       <h2 class="title" style="font-size:1.15rem">已抽牌</h2>
       ${cardHTML(null,null,true,false)}
       <p style="color:#6B2D5B;font-size:.88rem;text-align:center;line-height:1.6">
-        牌已抽好，你看不到数字。<br>朋友 B 们已经看到目标分了。<br><br>
-        等 B 描述：<br>
-        <span style="font-weight:700;color:#FF6B6B">「这是一个${LABEL}，但是……」</span>
+        牌已抽好，你看不到数字。<br>
+        第 ${attemptsDone + 1} / ${s.maxAttempts} 次描述：请 <strong>${esc(s.currentDescriberName || "B")}</strong> 来说。<br><br>
+        听完后给出你的打分。
       </p>
       <div class="sep"></div>
-      <p style="color:#6B2D5B;font-size:.9rem;text-align:center">听完后给出你的打分</p>
+      ${attemptsHTML()}
+      <p style="color:#6B2D5B;font-size:.9rem;text-align:center">本次描述让你觉得值几分？</p>
       ${scoreDots(s.scoreVal, s.score===null)}
       ${s.scoreVal !== null && s.score === null ? `
         <button class="btn2" onclick="submitScore()" style="width:auto;padding:10px 36px">
           确认打分：${s.scoreVal} 分</button>` : ""}
-      ${s.score !== null ? `
-        <p style="color:#4A1942;font-weight:700">已提交 ${s.score} 分</p>
-        <button class="btn1" onclick="revealCard()">揭牌！看看答案</button>` : ""}
+      <button class="btn-small" onclick="endGame()">结束游戏</button>
     </div>`;
   }
 
@@ -622,6 +807,7 @@ function render() {
         </div>
       </div>
       <p style="color:#6B2D5B;font-weight:700;font-size:1.2rem">差距：${diff} 分</p>
+      ${attemptsHTML()}
       ${historyHTML()}
       <div class="sep"></div>
       <p style="color:#4A1942;font-weight:700;font-size:.88rem">下一轮谁当 A？</p>
@@ -629,6 +815,7 @@ function render() {
         ${allPlayers.map(p => `<button class="next-btn ${p.id===myId?"current":""}"
           onclick='nextRound(${jsArg(p.id)},${jsArg(p.name)})'>${esc(p.name)}${p.id===myId?"（继续）":""}</button>`).join("")}
       </div>
+      <button class="btn-small" onclick="endGame()">结束游戏</button>
     </div>`;
   }
 
@@ -644,6 +831,8 @@ function render() {
 
   // GUEST SEE
   else if (s.view === "guestSee") {
+    const isMyTurn = s.currentDescriberId === myId;
+    const attemptsDone = attemptList().length;
     html = `<div class="panel">
       <div class="alert-box">
         <p style="color:#D63031;font-weight:800;font-size:1.05rem">⚠️ 不要让 ${esc(s.hostName)} 看到这个屏幕！</p>
@@ -653,15 +842,16 @@ function render() {
       ${cardHTML(s.card, s.suit, false, false)}
       <div class="info-box">
         <p style="color:#4A1942;font-size:.88rem;line-height:1.7">
-          用这个句式描述：<br>
-          <span style="font-weight:800;color:#FF6B6B;font-size:1.05rem">「这是一个${LABEL}，但是……」</span><br>
-          <span style="font-size:.8rem;color:#8B6B7B">只说一个缺点，让 ${esc(s.hostName)} 打出 <strong>${s.card} 分</strong></span>
+          第 ${attemptsDone + 1} / ${s.maxAttempts} 次描述<br>
+          ${isMyTurn
+            ? `<span style="font-weight:800;color:#FF6B6B;font-size:1.05rem">轮到你描述</span><br>
+              <span style="font-size:.8rem;color:#8B6B7B">用「这是一个${LABEL}，但是……」让 ${esc(s.hostName)} 打出 <strong>${s.card} 分</strong></span>`
+            : `<span style="font-weight:800;color:#4A1942;font-size:1.05rem">现在是 ${esc(s.currentDescriberName || "B")} 描述</span><br>
+              <span style="font-size:.8rem;color:#8B6B7B">你先别说，等轮到你时再描述</span>`}
         </p>
       </div>
-      ${s.score !== null ? `<div style="background:#F0E6F6;border-radius:12px;padding:12px 20px;width:100%;text-align:center">
-        <p style="color:#4A1942;font-size:.9rem">${esc(s.hostName)} 已打分：<strong style="font-size:1.2rem">${s.score} 分</strong>
-        <span style="margin-left:8px;font-size:.8rem;color:#8B6B7B">（目标 ${s.card}）</span></p>
-      </div>` : `<p class="sub pulse">等待 ${esc(s.hostName)} 打分…</p>`}
+      ${attemptsHTML()}
+      <p class="sub pulse">等待 ${esc(s.hostName)} 本次打分…</p>
     </div>`;
   }
 
@@ -688,7 +878,18 @@ function render() {
         </div>
       </div>
       ${historyHTML()}
+      ${attemptsHTML()}
       <p class="sub pulse">等待 A 开始下一轮…</p>
+    </div>`;
+  }
+
+  // GAME END
+  else if (s.view === "gameEnd") {
+    html = `<div class="panel">
+      <p class="sub" style="font-size:.8rem">游戏结束</p>
+      <h2 class="title" style="font-size:1.35rem">默契度排行榜</h2>
+      ${rankingHTML()}
+      ${historyHTML()}
     </div>`;
   }
 
