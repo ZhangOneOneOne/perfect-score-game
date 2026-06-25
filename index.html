@@ -664,6 +664,11 @@ window.handleJoinCodeInput = (el) => {
 };
 
 window.handleMaxAttemptsInput = (el) => {
+  const n = parseInt(el.value, 10);
+  if (Number.isFinite(n)) state.maxAttempts = clampMaxAttempts(n);
+};
+
+window.handleMaxAttemptsBlur = (el) => {
   state.maxAttempts = clampMaxAttempts(el.value);
   el.value = state.maxAttempts;
 };
@@ -703,7 +708,7 @@ function render() {
       <div class="settings-row">
         <span style="color:#4A1942;font-weight:700;font-size:.86rem;white-space:nowrap">最多描述</span>
         <input id="input-max-attempts" class="input" type="number" min="1" max="20"
-          value="${attr(s.maxAttempts)}" oninput="handleMaxAttemptsInput(this)" />
+          value="${attr(s.maxAttempts)}" oninput="handleMaxAttemptsInput(this)" onblur="handleMaxAttemptsBlur(this)" />
         <span style="color:#8B6B7B;font-size:.82rem;white-space:nowrap">轮</span>
       </div>
       <input id="input-name" class="input" placeholder="输入你的昵称（≤8字）" maxlength="8"
