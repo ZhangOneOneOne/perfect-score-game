@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>满分男（女）聚会小游戏</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    min-height:100vh; min-height:100dvh;
+    background:linear-gradient(160deg,#FFF8F0 0%,#F5E6D3 40%,#FAE5E5 100%);
+    font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',-apple-system,sans-serif;
+    display:flex; justify-content:center; align-items:center; padding:16px;
+  }
+  .panel {
+    background:rgba(255,255,255,.88); backdrop-filter:blur(12px);
+    border-radius:24px; padding:28px 22px; max-width:400px; width:100%;
+    box-shadow:0 12px 48px rgba(74,25,66,.08);
+    display:flex; flex-direction:column; align-items:center; gap:18px;
+  }
+  .title {
+    font-size:1.5rem; font-weight:800; letter-spacing:2px;
+    background:linear-gradient(135deg,#4A1942,#FF6B6B);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  .sub { color:#8B6B7B; font-size:.84rem; text-align:center; line-height:1.6; }
+  .btn1 {
+    padding:13px 36px; font-size:1.02rem; font-weight:700;
+    background:linear-gradient(135deg,#FF6B6B,#FF8E8E);
+    color:#fff; border:none; border-radius:50px; cursor:pointer;
+    box-shadow:0 4px 20px rgba(255,107,107,.35); letter-spacing:1px;
+    width:100%; transition:opacity .2s;
+  }
+  .btn1:disabled { opacity:.45; cursor:default; }
+  .btn2 {
+    padding:13px 36px; font-size:1.02rem; font-weight:700;
+    background:linear-gradient(135deg,#4A1942,#6B2D5B);
+    color:#FFD700; border:none; border-radius:50px; cursor:pointer;
+    box-shadow:0 4px 20px rgba(74,25,66,.25); letter-spacing:1px;
+    width:100%;
+  }
+  .btn-small {
+    padding:8px 20px; font-size:.82rem; font-weight:600;
+    background:none; border:1.5px solid #c8a0c0; border-radius:50px;
+    color:#6B2D5B; cursor:pointer;
+  }
+  .input {
+    width:100%; padding:12px 18px; font-size:1rem; font-weight:600;
+    border:2px solid #e0d5c8; border-radius:14px; background:#FFFDF7;
+    outline:none; color:#4A1942; text-align:center;
+  }
+  .input-code { font-size:1.6rem; letter-spacing:10px; font-family:monospace; }
+  .badge {
+    background:#4A1942; color:#FFD700; padding:8px 24px; border-radius:12px;
+    font-size:1.8rem; font-weight:800; letter-spacing:8px; font-family:monospace;
+  }
+  .sep { width:100%; height:1px; background:linear-gradient(90deg,transparent,#e0d5c8,transparent); }
+  .tag-a {
+    display:inline-block; background:#FF6B6B; color:#fff;
+    padding:2px 10px; border-radius:20px; font-size:.75rem; font-weight:700;
+  }
+  .tag-b {
+    display:inline-block; background:#4A1942; color:#FFD700;
+    padding:2px 10px; border-radius:20px; font-size:.75rem; font-weight:700;
+  }
+  .alert-box {
+    background:linear-gradient(135deg,#FFF0F0,#FFE8E8);
+    border-radius:16px; padding:18px; width:100%; border:1px solid #FFD5D5;
+    text-align:center;
+  }
+  .info-box {
+    background:#FFF8F0; border-radius:14px; padding:14px 18px; width:100%; text-align:center;
+  }
+  .card {
+    width:140px; height:196px; border-radius:12px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 8px 32px rgba(0,0,0,.12); position:relative;
+  }
+  .card-front { background:#FFFDF7; border:2px solid #e0d5c8; }
+  .card-back {
+    background:linear-gradient(135deg,#4A1942,#6B2D5B,#4A1942);
+    border:2px solid rgba(255,215,0,.53);
+  }
+  .card-back::before {
+    content:''; position:absolute; inset:8px;
+    border:1.5px solid rgba(255,215,0,.33); border-radius:8px;
+  }
+  .card-num { font-size:3.2rem; font-weight:800; line-height:1; }
+  .card-suit { font-size:1.6rem; }
+  .card-corner {
+    position:absolute; top:8px; left:12px; font-size:1rem; font-weight:700;
+  }
+  .red { color:#D63031; }
+  .black { color:#2D3436; }
+  .score-dots { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+  .score-dot {
+    width:40px; height:40px; border-radius:50%; font-size:.95rem; font-weight:700;
+    border:2px solid #e0d5c8; background:#FFFDF7; color:#4A1942; cursor:pointer;
+  }
+  .score-dot.active { border-color:#FF6B6B; background:#FF6B6B; color:#fff; }
+  .result-circle {
+    width:80px; height:80px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .player-chip {
+    padding:5px 14px; border-radius:20px; font-size:.84rem; font-weight:600;
+    background:#F0E6F6; color:#4A1942;
+  }
+  .player-chip.host { background:#FF6B6B; color:#fff; }
+  .next-btn {
+    padding:10px 22px; border-radius:50px; cursor:pointer;
+    border:2px solid #e0d5c8; background:#FFFDF7; color:#4A1942;
+    font-weight:700; font-size:.88rem;
+  }
+  .next-btn.current { border-color:#FF6B6B; background:#FF6B6B; color:#fff; }
+  .history-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:6px 12px; border-radius:10px; font-size:.79rem; color:#4A1942;
+  }
+  .history-row:nth-child(odd) { background:#FFF8F0; }
+  .overlay {
+    position:fixed; inset:0; background:rgba(74,25,66,.45);
+    backdrop-filter:blur(6px); display:flex; align-items:center;
+    justify-content:center; z-index:999; padding:16px;
+  }
+  .modal {
+    background:#fff; border-radius:24px; padding:24px 20px;
+    max-width:360px; width:100%; display:flex; flex-direction:column; gap:14px;
+  }
+  .guest-item {
+    display:flex; align-items:center; gap:10px; padding:10px 14px;
+    border-radius:14px; background:#F9F5FC; border:2px solid transparent; cursor:pointer;
+  }
+  .guest-item.is-host { background:#FFF0F0; border-color:#FF6B6B; }
+  .guest-avatar {
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg,#FF6B6B,#FF8E8E);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; font-size:.95rem;
+  }
+  .err { color:#D63031; font-size:.84rem; text-align:center; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+  .flex-center { display:flex; align-items:center; justify-content:center; }
+  .gap-8 { gap:8px; }
+  .gap-12 { gap:12px; }
+  .flex-wrap { flex-wrap:wrap; }
+  .w-full { width:100%; }
+  .text-center { text-align:center; }
+  .fw700 { font-weight:700; }
+  .mt4 { margin-top:4px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Firebase SDK (compat version for simplicity) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<script>
+// ╔══════════════════════════════════════════════════════╗
+// ║  👇 把这里替换成你自己的 Firebase 配置（见教程）👇    ║
+// ╚══════════════════════════════════════════════════════╝
+const firebaseConfig = {
+  apiKey: "AIzaSyCmDj_5UoIHZXbZF8QNw9r5gRVAC7H-mBg",
+  authDomain: "perfect-score-game.firebaseapp.com",
+  databaseURL: "https://perfect-score-game-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "perfect-score-game",
+  storageBucket: "perfect-score-game.firebasestorage.app",
+  messagingSenderId: "260086258512",
+  appId: "1:260086258512:web:ca52fb54942cf080612a55"
+};
+
+let db = null;
+let firebaseReady = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+  // Quick test
+  if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("在此")) {
+    firebaseReady = true;
+  }
+} catch(e) {
+  console.error("Firebase init error:", e);
+}
+
+// ── DB helpers ──
+function roomRef(code) { return db ? db.ref("rooms/" + code) : null; }
+
+function writeRoom(code, data) {
+  const ref = roomRef(code);
+  if (!ref) return Promise.resolve(false);
+  return ref.set(data).then(() => true).catch((e) => { console.error(e); return false; });
+}
+
+function updateRoom(code, updates) {
+  const ref = roomRef(code);
+  if (!ref) return Promise.resolve(false);
+  return ref.update(updates).then(() => true).catch((e) => { console.error(e); return false; });
+}
+
+function onRoomChange(code, callback) {
+  const ref = roomRef(code);
+  if (!ref) return () => {};
+  const handler = ref.on("value", (snap) => {
+    const val = snap.val();
+    if (val) callback(val);
+  });
+  return () => ref.off("value", handler);
+}
+
+function readRoom(code) {
+  const ref = roomRef(code);
+  if (!ref) return Promise.resolve(null);
+  return ref.get().then((snap) => snap.val()).catch(() => null);
+}
+
+// ── Utility ──
+function genCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+const SUITS = ["♠","♥","♦","♣"];
+const LABEL = "满分男（女）";
+const myId = genId();
+
+// ══════════════════════════════════════
+// Vanilla JS SPA (no React dependency)
+// ══════════════════════════════════════
+const $ = (sel) => document.querySelector(sel);
+const root = document.getElementById("root");
+
+let state = {
+  view: "home", // home | join | hostWait | hostDrawn | hostScore | hostReveal | guestWait | guestSee | guestReveal
+  name: "",
+  roomCode: "",
+  joinCode: "",
+  hostId: "",
+  hostName: "",
+  card: null,
+  suit: null,
+  round: 1,
+  score: null,
+  scoreVal: null,
+  guests: {},
+  err: "",
+  history: [],
+  unsub: null,
+};
+
+function setState(patch) {
+  Object.assign(state, patch);
+  render();
+}
+
+function cardHTML(num, suit, flipped, small) {
+  if (flipped) {
+    const w = small ? 64 : 140, h = small ? 90 : 196;
+    return `<div class="card card-back" style="width:${w}px;height:${h}px">
+      <span style="font-size:${small?'.9':'1.6'}rem;color:#FFD700;opacity:.7">✦</span></div>`;
+  }
+  const red = (suit==="♥"||suit==="♦");
+  const cls = red ? "red" : "black";
+  const w = small ? 64 : 140, h = small ? 90 : 196;
+  return `<div class="card card-front" style="width:${w}px;height:${h}px">
+    <span class="card-corner ${cls}" style="font-size:${small?'.7':'1'}rem">${num}</span>
+    <span class="card-num ${cls}" style="font-size:${small?'1.4':'3.2'}rem">${num}</span>
+    <span class="card-suit ${cls}" style="font-size:${small?'.9':'1.6'}rem">${suit}</span>
+  </div>`;
+}
+
+function guestList() {
+  const g = state.guests || {};
+  return Object.values(g);
+}
+
+function guestChips() {
+  const list = guestList();
+  if (!list.length) return `<p class="sub pulse">等待 B 加入…</p>`;
+  return `<div class="flex-center flex-wrap gap-8">
+    ${list.map(g => `<span class="player-chip">${esc(g.name)}</span>`).join("")}
+    <span style="font-size:.82rem;color:#8B6B7B">已加入</span>
+  </div>`;
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function scoreDots(selected, clickable) {
+  let html = '<div class="score-dots">';
+  for (let i = 0; i <= 10; i++) {
+    const cls = i === selected ? "score-dot active" : "score-dot";
+    const onclick = clickable ? `onclick="selectScore(${i})"` : "";
+    html += `<button class="${cls}" ${onclick}>${i}</button>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function historyHTML() {
+  if (!state.history.length) return "";
+  let html = `<div class="w-full" style="max-height:160px;overflow-y:auto">
+    <p style="color:#4A1942;font-weight:700;font-size:.82rem;margin-bottom:6px">历史战绩</p>`;
+  for (let i = state.history.length - 1; i >= 0; i--) {
+    const h = state.history[i];
+    const d = Math.abs(h.score - h.card);
+    const c = d===0?"#27AE60":d<=1?"#F39C12":"#D63031";
+    html += `<div class="history-row">
+      <span>R${h.round} ${esc(h.host)}（A）</span>
+      <span>目标${h.card} → 打了${h.score}</span>
+      <span style="font-weight:700;color:${c}">差${d}</span>
+    </div>`;
+  }
+  html += "</div>";
+  return html;
+}
+
+// ── Actions ──
+window.selectScore = (v) => { setState({ scoreVal: v }); };
+
+window.createRoom = async () => {
+  const name = state.name.trim();
+  if (!name) { setState({ err: "请先输入昵称" }); return; }
+  if (!firebaseReady) { setState({ err: "Firebase 未配置，请按教程填写配置" }); return; }
+  const code = genCode();
+  const data = {
+    hostId: myId, hostName: name,
+    card: null, suit: null, round: 1, status: "waiting", score: null,
+    guests: {}, created: Date.now(),
+  };
+  const ok = await writeRoom(code, data);
+  if (!ok) { setState({ err: "创建失败，请检查 Firebase 配置" }); return; }
+  const unsub = onRoomChange(code, (d) => {
+    state.guests = d.guests || {};
+    state.round = d.round || 1;
+    render();
+  });
+  setState({ view: "hostWait", roomCode: code, hostId: myId, hostName: name, round: 1, unsub, err: "" });
+};
+
+window.drawCard = async () => {
+  const n = Math.floor(Math.random()*10)+1;
+  const s = SUITS[Math.floor(Math.random()*4)];
+  await updateRoom(state.roomCode, { card:n, suit:s, status:"drawn", score:null, round:state.round });
+  setState({ card:n, suit:s, score:null, scoreVal:null, view:"hostDrawn" });
+  // Auto-advance to score view after a moment (host shouldn't see this screen long)
+  setTimeout(() => { if (state.view==="hostDrawn") setState({ view:"hostScore" }); }, 600);
+};
+
+window.submitScore = async () => {
+  if (state.scoreVal === null) return;
+  await updateRoom(state.roomCode, { score: state.scoreVal, status: "scored" });
+  setState({ score: state.scoreVal });
+};
+
+window.revealCard = async () => {
+  await updateRoom(state.roomCode, { status: "revealed" });
+  const h = [...state.history, { round:state.round, host:state.hostName, card:state.card, score:state.score }];
+  setState({ view:"hostReveal", history:h });
+};
+
+window.nextRound = async (newHostId, newHostName) => {
+  const nr = state.round + 1;
+  // If transferring, move old host to guests, remove new host from guests
+  let guestsObj = { ...(state.guests || {}) };
+  if (newHostId && newHostId !== myId) {
+    // Old host becomes guest
+    guestsObj[myId] = { id: myId, name: state.hostName };
+    // New host removed from guests
+    delete guestsObj[newHostId];
+  } else if (newHostId && newHostId !== state.hostId) {
+    delete guestsObj[newHostId];
+    guestsObj[state.hostId] = { id: state.hostId, name: state.hostName };
+  }
+
+  await updateRoom(state.roomCode, {
+    card:null, suit:null, status:"waiting", score:null,
+    round:nr, hostId:newHostId||myId, hostName:newHostName||state.hostName,
+    guests: guestsObj,
+  });
+
+  if (!newHostId || newHostId === myId) {
+    setState({ round:nr, card:null, suit:null, score:null, scoreVal:null, view:"hostWait" });
+  } else {
+    // I'm no longer host, switch to guest mode
+    if (state.unsub) state.unsub();
+    const unsub = onRoomChange(state.roomCode, onGuestData);
+    setState({ round:nr, card:null, suit:null, score:null, scoreVal:null, view:"guestWait", unsub,
+      hostId:newHostId, hostName:newHostName });
+  }
+};
+
+window.joinRoom = async () => {
+  const name = state.name.trim();
+  if (!name) { setState({ err: "请先输入昵称" }); return; }
+  if (!firebaseReady) { setState({ err: "Firebase 未配置" }); return; }
+  const code = state.joinCode;
+  if (code.length !== 4) return;
+  const d = await readRoom(code);
+  if (!d) { setState({ err: "房间不存在，请检查房间号" }); return; }
+  // Add self as guest
+  const gRef = db.ref("rooms/" + code + "/guests/" + myId);
+  await gRef.set({ id: myId, name: name });
+  // Subscribe
+  const unsub = onRoomChange(code, onGuestData);
+  setState({
+    view: "guestWait", roomCode: code, err: "",
+    hostId: d.hostId, hostName: d.hostName,
+    round: d.round || 1, unsub,
+  });
+};
+
+function onGuestData(d) {
+  // Did I become host?
+  if (d.hostId === myId) {
+    if (state.unsub) state.unsub();
+    const unsub = onRoomChange(state.roomCode, (dd) => {
+      state.guests = dd.guests || {};
+      state.round = dd.round || 1;
+      render();
+    });
+    setState({
+      view: "hostWait", unsub,
+      hostId: myId, hostName: d.hostName,
+      guests: d.guests || {},
+      round: d.round || 1, card:null, score:null,
+    });
+    return;
+  }
+  state.hostId = d.hostId;
+  state.hostName = d.hostName || "A";
+  state.round = d.round || 1;
+  state.guests = d.guests || {};
+  if (d.status === "drawn" || d.status === "scored") {
+    state.card = d.card; state.suit = d.suit; state.score = d.score;
+    state.view = "guestSee";
+  } else if (d.status === "revealed") {
+    state.card = d.card; state.suit = d.suit; state.score = d.score;
+    if (state.view !== "guestReveal") {
+      state.history = [...state.history, { round:d.round, host:d.hostName, card:d.card, score:d.score }];
+    }
+    state.view = "guestReveal";
+  } else {
+    state.card = null; state.score = null;
+    state.view = "guestWait";
+  }
+  render();
+}
+
+window.goJoin = () => {
+  if (!state.name.trim()) { setState({ err: "请先输入昵称" }); return; }
+  setState({ view:"join", err:"" });
+};
+window.goHome = () => setState({ view:"home", err:"" });
+window.setName = (v) => setState({ name: v.slice(0,8), err:"" });
+window.setJoinCode = (v) => setState({ joinCode: v.replace(/\D/g,"").slice(0,4), err:"" });
+
+// ── Render ──
+function render() {
+  const s = state;
+  let html = "";
+
+  // HOME
+  if (s.view === "home") {
+    html = `<div class="panel">
+      <div style="font-size:3rem;line-height:1">💯</div>
+      <h1 class="title">${LABEL}</h1>
+      <p class="sub">TA 各方面满分，只有一个缺点——<br>你能猜中这个缺点值几分吗？</p>
+      ${!firebaseReady ? `<div class="alert-box"><p style="color:#D63031;font-size:.82rem">
+        Firebase 未配置。请打开 index.html 填写你的 Firebase 配置后刷新页面。<br>详见附带的教程文档。</p></div>` : ""}
+      <div class="info-box" style="text-align:left">
+        <p style="margin-bottom:6px;color:#4A1942;font-weight:700;font-size:.88rem">玩法速览</p>
+        <p style="color:#8B6B7B;font-size:.8rem;line-height:1.7">
+          每人用自己手机打开链接加入同一房间。<br>
+          A（打分人）抽牌，自己看不到，所有 B 能看到目标分。<br>
+          B 口述「这是一个${LABEL}，但是……」描述一个缺点。<br>
+          A 打分，越接近目标越好！每轮可换人当 A。
+        </p>
+      </div>
+      <input class="input" placeholder="输入你的昵称（≤8字）" value="${esc(s.name)}" oninput="setName(this.value)" />
+      ${s.err ? `<p class="err">${esc(s.err)}</p>` : ""}
+      <button class="btn1" onclick="createRoom()" ${!firebaseReady?"disabled":""}>创建房间（当 A）</button>
+      <button class="btn2" onclick="goJoin()">加入房间（当 B）</button>
+    </div>`;
+  }
+
+  // JOIN
+  else if (s.view === "join") {
+    html = `<div class="panel">
+      <h2 class="title" style="font-size:1.3rem">加入房间</h2>
+      <p class="sub">输入 A 分享的四位房间号</p>
+      <input class="input input-code" placeholder="四位房间号" value="${esc(s.joinCode)}"
+        oninput="setJoinCode(this.value)" maxlength="4" inputmode="numeric" />
+      ${s.err ? `<p class="err">${esc(s.err)}</p>` : ""}
+      <div style="display:flex;gap:12px;width:100%">
+        <button class="btn2" style="flex:1" onclick="goHome()">返回</button>
+        <button class="btn1" style="flex:1" onclick="joinRoom()" ${s.joinCode.length!==4?"disabled":""}>加入</button>
+      </div>
+    </div>`;
+  }
+
+  // HOST WAIT
+  else if (s.view === "hostWait") {
+    html = `<div class="panel">
+      <p class="sub" style="font-size:.8rem"><span class="tag-a">A 打分人 · ${esc(s.hostName)}</span>　第 ${s.round} 轮</p>
+      <h2 class="title" style="font-size:1.2rem">房间号</h2>
+      <div class="badge">${s.roomCode}</div>
+      <p class="sub" style="font-size:.78rem">让其他玩家打开同一个网址，输入此房间号加入</p>
+      ${guestChips()}
+      <div class="sep"></div>
+      <p style="color:#4A1942;font-weight:700;font-size:.9rem">准备好了？抽一张牌</p>
+      <p class="sub" style="font-size:.78rem">抽牌后你将看不到结果</p>
+      <button class="btn1" onclick="drawCard()">🃏 点击抽牌</button>
+    </div>`;
+  }
+
+  // HOST DRAWN (brief flash)
+  else if (s.view === "hostDrawn") {
+    html = `<div class="panel">
+      <p class="sub">正在发牌…</p>
+      ${cardHTML(null,null,true,false)}
+    </div>`;
+  }
+
+  // HOST SCORE
+  else if (s.view === "hostScore") {
+    html = `<div class="panel">
+      <p class="sub" style="font-size:.8rem"><span class="tag-a">A ${esc(s.hostName)}</span>　第 ${s.round} 轮</p>
+      <h2 class="title" style="font-size:1.15rem">已抽牌</h2>
+      ${cardHTML(null,null,true,false)}
+      <p style="color:#6B2D5B;font-size:.88rem;text-align:center;line-height:1.6">
+        牌已抽好，你看不到数字。<br>B 们已经看到目标分了。<br><br>
+        等 B 描述：<br>
+        <span style="font-weight:700;color:#FF6B6B">「这是一个${LABEL}，但是……」</span>
+      </p>
+      <div class="sep"></div>
+      <p style="color:#6B2D5B;font-size:.9rem;text-align:center">听完后给出你的打分</p>
+      ${scoreDots(s.scoreVal, s.score===null)}
+      ${s.scoreVal !== null && s.score === null ? `
+        <button class="btn2" onclick="submitScore()" style="width:auto;padding:10px 36px">
+          确认打分：${s.scoreVal} 分</button>` : ""}
+      ${s.score !== null ? `
+        <p style="color:#4A1942;font-weight:700">已提交 ${s.score} 分</p>
+        <button class="btn1" onclick="revealCard()">揭牌！看看答案</button>` : ""}
+    </div>`;
+  }
+
+  // HOST REVEAL
+  else if (s.view === "hostReveal") {
+    const diff = Math.abs(s.score - s.card);
+    const emoji = diff===0?"🎉":diff<=1?"👏":diff<=3?"😅":"💀";
+    const msg = diff===0?"完美命中！！":diff<=1?"好接近！":diff<=3?"有点差距":"离谱了……";
+    const gl = guestList();
+    const allPlayers = [{ id:myId, name:s.hostName }, ...gl];
+
+    html = `<div class="panel">
+      <p class="sub" style="font-size:.8rem">第 ${s.round} 轮结果</p>
+      <div style="font-size:3.5rem;line-height:1">${emoji}</div>
+      <h2 class="title" style="font-size:1.35rem">${msg}</h2>
+      <div style="display:flex;gap:24px;align-items:flex-end">
+        <div class="text-center">
+          <p style="color:#8B6B7B;font-size:.75rem;margin-bottom:8px">目标分</p>
+          ${cardHTML(s.card, s.suit, false, false)}
+        </div>
+        <div class="text-center">
+          <p style="color:#8B6B7B;font-size:.75rem;margin-bottom:8px">${esc(s.hostName)} 的打分</p>
+          <div class="result-circle" style="background:${diff===0
+            ?"linear-gradient(135deg,#FFD700,#FFA502)"
+            :"linear-gradient(135deg,#FF6B6B,#FF8E8E)"};box-shadow:${diff===0
+            ?"0 4px 24px rgba(255,215,0,.5)"
+            :"0 4px 24px rgba(255,107,107,.3)"}">
+            <span style="font-size:2.2rem;font-weight:800;color:#fff">${s.score}</span>
+          </div>
+        </div>
+      </div>
+      <p style="color:#6B2D5B;font-weight:700;font-size:1.2rem">差距：${diff} 分</p>
+      ${historyHTML()}
+      <div class="sep"></div>
+      <p style="color:#4A1942;font-weight:700;font-size:.88rem">下一轮谁当 A？</p>
+      <div class="flex-center flex-wrap gap-8">
+        ${allPlayers.map(p => `<button class="next-btn ${p.id===myId?"current":""}"
+          onclick="nextRound('${p.id}','${esc(p.name)}')">${esc(p.name)}${p.id===myId?"（继续）":""}</button>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  // GUEST WAIT
+  else if (s.view === "guestWait") {
+    html = `<div class="panel">
+      <p class="sub" style="font-size:.8rem"><span class="tag-b">B 描述人</span>　房间 ${s.roomCode}　第 ${s.round} 轮</p>
+      <h2 class="title" style="font-size:1.15rem">等待 A 抽牌</h2>
+      ${cardHTML(null,null,true,false)}
+      <p class="sub pulse">A（${esc(s.hostName)}）正在操作，抽好后这里会自动显示目标分…</p>
+    </div>`;
+  }
+
+  // GUEST SEE
+  else if (s.view === "guestSee") {
+    html = `<div class="panel">
+      <div class="alert-box">
+        <p style="color:#D63031;font-weight:800;font-size:1.05rem">⚠️ 不要让 ${esc(s.hostName)} 看到这个屏幕！</p>
+      </div>
+      <p class="sub" style="font-size:.8rem"><span class="tag-b">B 专属画面</span>　第 ${s.round} 轮</p>
+      <h2 class="title" style="font-size:1.2rem">目标分数</h2>
+      ${cardHTML(s.card, s.suit, false, false)}
+      <div class="info-box">
+        <p style="color:#4A1942;font-size:.88rem;line-height:1.7">
+          用这个句式描述：<br>
+          <span style="font-weight:800;color:#FF6B6B;font-size:1.05rem">「这是一个${LABEL}，但是……」</span><br>
+          <span style="font-size:.8rem;color:#8B6B7B">只说一个缺点，让 ${esc(s.hostName)} 打出 <strong>${s.card} 分</strong></span>
+        </p>
+      </div>
+      ${s.score !== null ? `<div style="background:#F0E6F6;border-radius:12px;padding:12px 20px;width:100%;text-align:center">
+        <p style="color:#4A1942;font-size:.9rem">${esc(s.hostName)} 已打分：<strong style="font-size:1.2rem">${s.score} 分</strong>
+        <span style="margin-left:8px;font-size:.8rem;color:#8B6B7B">（目标 ${s.card}）</span></p>
+      </div>` : `<p class="sub pulse">等待 ${esc(s.hostName)} 打分…</p>`}
+    </div>`;
+  }
+
+  // GUEST REVEAL
+  else if (s.view === "guestReveal") {
+    const diff = Math.abs(s.score - s.card);
+    const emoji = diff===0?"🎉":diff<=1?"👏":diff<=3?"😅":"💀";
+    html = `<div class="panel">
+      <p class="sub" style="font-size:.8rem">第 ${s.round} 轮结果</p>
+      <div style="font-size:3.5rem;line-height:1">${emoji}</div>
+      <h2 class="title" style="font-size:1.2rem">${diff===0?"完美命中！":`差了 ${diff} 分`}</h2>
+      <div style="display:flex;gap:24px;align-items:flex-end">
+        <div class="text-center">
+          <p style="color:#8B6B7B;font-size:.75rem;margin-bottom:8px">目标分</p>
+          ${cardHTML(s.card, s.suit, false, true)}
+        </div>
+        <div class="text-center">
+          <p style="color:#8B6B7B;font-size:.75rem;margin-bottom:8px">${esc(s.hostName)} 打分</p>
+          <div class="result-circle" style="width:56px;height:56px;background:${diff===0
+            ?"linear-gradient(135deg,#FFD700,#FFA502)"
+            :"linear-gradient(135deg,#FF6B6B,#FF8E8E)"}">
+            <span style="font-size:1.5rem;font-weight:800;color:#fff">${s.score}</span>
+          </div>
+        </div>
+      </div>
+      ${historyHTML()}
+      <p class="sub pulse">等待 A 开始下一轮…</p>
+    </div>`;
+  }
+
+  root.innerHTML = html;
+}
+
+render();
+</script>
+</body>
+</html>
